@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hungarian Rings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="vignette"></div>
+  <canvas id="c"></canvas>
+
+  <header class="ui-panel top-left">
+    <p class="eyebrow">Classic mechanical puzzle</p>
+    <h1>Hungarian Rings</h1>
+    <p class="tagline">Interlock · Rotate · Restore the four colours</p>
+  </header>
+
+  <aside class="ui-panel top-right stats">
+    <div class="stat">
+      <span class="label">Moves</span>
+      <span id="moveCount" class="value">0</span>
+    </div>
+    <div class="stat">
+      <span class="label">Status</span>
+      <span id="status" class="value status-idle">Ready</span>
+    </div>
+  </aside>
+
+  <div class="ui-panel bottom-center controls">
+    <button id="newGame" type="button" class="btn gold">
+      <span class="btn-icon">✦</span> New Game
+    </button>
+    <button id="autoSolve" type="button" class="btn outline">
+      <span class="btn-icon">◇</span> <span id="solveLabel">Auto Solve</span>
+    </button>
+  </div>
+
+  <p class="hint">Drag a ring to turn the beads · Empty space to look around</p>
+
+  <div id="win" class="win-banner hidden" aria-hidden="true">Solved</div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <script type="module" src="game.js"></script>
+</body>
+</html>
