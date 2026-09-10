@@ -721,10 +721,10 @@
       return mesh;
     }
 
-    // Soft molded, ivory-gray case with an inset face.
-    plate(5.72, 3.65, 0.53, 0.18, 0.12, '#b5b8b5', -0.20);
-    plate(5.54, 3.47, 0.48, 0.06, 0.09, '#e0dfd9', -0.01);
-    plate(5.33, 3.26, 0.42, 0.025, 0.05, '#c5c8c3', 0.065);
+    // Soft molded case, kept below the channel floor so it
+    // cannot fill the troughs.
+    plate(6.05, 3.95, 0.56, 0.2, 0.08, '#b5b8b5', -0.34);
+    plate(5.88, 3.78, 0.52, 0.06, 0.03, '#c2c5c0', -0.14);
 
     // ─────────────────────────────────────────────────────
     // Exact topology:
@@ -739,12 +739,20 @@
     const R = 1.46;
     const C = R / Math.sqrt(2);
     const centers = [-C, C];
-    const BALL_Z = 0.31;
+    const BALL_R = 0.207;
+    const CHANNEL_HALF_WIDTH = 0.288;
+    const LIP_RADIUS = 0.055;
+    const JUNCTION_ROUNDING = 0.1;
+    const CHANNEL_FLOOR_Z = 0.0;
+    const CHANNEL_TOP_Z = 0.27;
+    const CHANNEL_DEPTH = CHANNEL_TOP_Z - CHANNEL_FLOOR_Z;
+    const BALL_Z = CHANNEL_FLOOR_Z + BALL_R * 0.88;
 
     const grooveMaterial = new THREE.MeshStandardMaterial({
-      color: '#7f8783',
-      roughness: 0.65,
-      metalness: 0.02
+      color: '#5a635e',
+      roughness: 0.88,
+      metalness: 0.02,
+      side: THREE.DoubleSide
     });
 
     const lipMaterial = new THREE.MeshStandardMaterial({
@@ -753,28 +761,192 @@
       metalness: 0.04
     });
 
-// ─────────────────────────────────────────────────────
-// Continuous molded rims.
-// Trace the outline of both channels as one shape,
-// rounding their intersections instead of cutting tubes.
-// ─────────────────────────────────────────────────────
+    const islandMaterial = new THREE.MeshStandardMaterial({
+      color: '#e4e3dc',
+      roughness: 0.4,
+      metalness: 0.03
+    });
 
-const CHANNEL_HALF_WIDTH = 0.238;
-const LIP_RADIUS = 0.047;
-const JUNCTION_ROUNDING = 0.085;
+    // ─────────────────────────────────────────────────────
+    // Deep U-channels, raised inner islands, and a tray
+    // face with a figure-8 opening — matching Rings.png.
+    // ─────────────────────────────────────────────────────
 
-// Keep the recessed beds underneath the marbles.
-for (let ring = 0; ring < 2; ring++) {
-  const bed = new THREE.Mesh(
-    new THREE.TorusGeometry(R, 0.229, 24, 192),
-    grooveMaterial
-  );
+    function intersectionHalfHeight(radius) {
+      return Math.sqrt(Math.max(radius * radius - C * C, 0));
+    }
 
-  bed.position.set(centers[ring], 0, 0.137);
-  bed.scale.z = 0.18;
-  bed.receiveShadow = true;
-  puzzle.add(bed);
-}
+    function addArcPoints(cx, cy, r, start, end, clockwise, segs) {
+      const pts = [];
+      let delta = end - start;
+      if (clockwise && delta > 0) delta -= Math.PI * 2;
+      if (!clockwise && delta < 0) delta += Math.PI * 2;
+      for (let i = 0; i <= segs; i++) {
+        const a = start + (delta * i) / segs;
+        pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+      }
+      return pts;
+    }
+
+    function shapeFromRings(rings) {
+      const shape = new THREE.Shape();
+      const first = rings[0][0];
+      shape.moveTo(first[0], first[1]);
+      for (const ring of rings) {
+        for (const [x, y] of ring.slice(1)) shape.lineTo(x, y);
+      }
+      shape.closePath();
+      return shape;
+    }
+
+    function addChannelBeds() {
+      const innerR = R - CHANNEL_HALF_WIDTH + 0.004;
+      const outerR = R + CHANNEL_HALF_WIDTH - 0.004;
+      const floor = new THREE.RingGeometry(innerR, outerR, 128);
+
+      for (let ring = 0; ring < 2; ring++) {
+        const bed = new THREE.Mesh(floor, grooveMaterial);
+        bed.position.set(centers[ring], 0, CHANNEL_FLOOR_Z + 0.002);
+        bed.receiveShadow = true;
+        puzzle.add(bed);
+      }
+    }
+
+    addChannelBeds();
+
+    function cutCrescent(ownCx, otherCx, ownR, cutR, segs) {
+      const dist = otherCx - ownCx;
+      const d = Math.abs(dist);
+      const aa = (ownR * ownR - cutR * cutR + d * d) / (2 * d);
+      const hh = Math.sqrt(Math.max(ownR * ownR - aa * aa, 0));
+      const sign = dist > 0 ? 1 : -1;
+      const midX = ownCx + sign * aa;
+
+      const ownTop = Math.atan2(hh, midX - ownCx);
+      const ownBot = Math.atan2(-hh, midX - ownCx);
+      const cutTop = Math.atan2(hh, midX - otherCx);
+      const cutBot = Math.atan2(-hh, midX - otherCx);
+
+      let ownCcw = ownBot - ownTop;
+      while (ownCcw < 0) ownCcw += Math.PI * 2;
+      const ownMid = ownTop + ownCcw / 2;
+      const ownMidX = ownCx + ownR * Math.cos(ownMid);
+      const ownCcwTowardOther =
+        Math.abs(ownMidX - otherCx) < Math.abs(ownCx - otherCx);
+      const ownPts = addArcPoints(
+        ownCx, 0, ownR, ownTop, ownBot, ownCcwTowardOther, segs
+      );
+
+      let cutCcw = cutTop - cutBot;
+      while (cutCcw < 0) cutCcw += Math.PI * 2;
+      const cutMid = cutBot + cutCcw / 2;
+      const cutMidX = otherCx + cutR * Math.cos(cutMid);
+      const cutCcwTowardOwn =
+        Math.abs(cutMidX - ownCx) < Math.abs(otherCx - ownCx);
+      const cutPts = addArcPoints(
+        otherCx, 0, cutR, cutBot, cutTop, !cutCcwTowardOwn, segs
+      );
+
+      return shapeFromRings([ownPts, cutPts]);
+    }
+
+    function addRaisedCrescents() {
+      const innerR = R - CHANNEL_HALF_WIDTH;
+      const outerR = R + CHANNEL_HALF_WIDTH;
+      const depth = CHANNEL_DEPTH - 0.02;
+      const segs = 80;
+
+      // Cut each island by the other ring's outer wall so the
+      // overlapping marble tracks stay a dark trough.
+      const left = cutCrescent(
+        centers[0], centers[1], innerR, outerR, segs
+      );
+      const right = cutCrescent(
+        centers[1], centers[0], innerR, outerR, segs
+      );
+
+      const extras = {
+        depth,
+        bevelEnabled: true,
+        bevelThickness: 0.02,
+        bevelSize: 0.02,
+        bevelSegments: 3,
+        curveSegments: 80
+      };
+
+      for (const shape of [left, right]) {
+        const mesh = new THREE.Mesh(
+          new THREE.ExtrudeGeometry(shape, extras),
+          islandMaterial
+        );
+        mesh.position.z = CHANNEL_FLOOR_Z;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        puzzle.add(mesh);
+      }
+
+      const lensCap = new THREE.Mesh(
+        new THREE.CircleGeometry(1, 64),
+        islandMaterial
+      );
+      lensCap.scale.set(
+        Math.max(innerR - C, 0.04),
+        Math.max(intersectionHalfHeight(innerR), 0.04),
+        1
+      );
+      lensCap.position.z = CHANNEL_TOP_Z;
+      lensCap.receiveShadow = true;
+      puzzle.add(lensCap);
+    }
+
+    addRaisedCrescents();
+
+    function addTrayFace() {
+      const outerR = R + CHANNEL_HALF_WIDTH;
+      const alpha = Math.atan2(intersectionHalfHeight(outerR), C);
+      const face = roundedRect(5.72, 3.66, 0.5);
+      const hole = new THREE.Path();
+      const rightArc = addArcPoints(
+        centers[1], 0, outerR,
+        Math.PI - alpha, -(Math.PI - alpha), true, 72
+      );
+      const leftArc = addArcPoints(
+        centers[0], 0, outerR,
+        -alpha, alpha, true, 72
+      );
+
+      hole.moveTo(rightArc[0][0], rightArc[0][1]);
+      for (const [x, y] of rightArc.slice(1)) hole.lineTo(x, y);
+      for (const [x, y] of leftArc.slice(1)) hole.lineTo(x, y);
+      hole.closePath();
+      face.holes.push(hole);
+
+      const depth = CHANNEL_DEPTH - 0.055;
+      const mesh = new THREE.Mesh(
+        new THREE.ExtrudeGeometry(face, {
+          depth,
+          bevelEnabled: true,
+          bevelThickness: 0.055,
+          bevelSize: 0.07,
+          bevelSegments: 6,
+          curveSegments: 80
+        }),
+        islandMaterial
+      );
+
+      mesh.position.z = CHANNEL_FLOOR_Z;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      puzzle.add(mesh);
+    }
+
+    addTrayFace();
+
+    // ─────────────────────────────────────────────────────
+    // Continuous molded rims.
+    // Trace the outline of both channels as one shape,
+    // rounding their intersections instead of cutting tubes.
+    // ─────────────────────────────────────────────────────
 
 // Smooth minimum creates gently rounded joins where
 // the two circular channels meet.
@@ -971,8 +1143,8 @@ function buildContinuousRims() {
 
     const rim = new THREE.Mesh(geometry, lipMaterial);
 
-    rim.position.z = 0.155;
-    rim.scale.z = 0.8;
+    rim.position.z = CHANNEL_TOP_Z + 0.01;
+    rim.scale.z = 1.35;
     rim.castShadow = true;
     rim.receiveShadow = true;
 
@@ -1043,7 +1215,7 @@ buildContinuousRims();
       });
     }
 
-    const ballGeometry = new THREE.SphereGeometry(0.207, 36, 24);
+    const ballGeometry = new THREE.SphereGeometry(BALL_R, 36, 24);
     const beads = slots.map((slot, id) => {
       const mesh = new THREE.Mesh(ballGeometry, materials[slot.target]);
       mesh.position.copy(slot.position);
@@ -1154,7 +1326,7 @@ buildContinuousRims();
       const ringSlots = rings[move.ring];
       const moving = ringSlots.map(id => state[id]);
       const speed = Number($('speed').value);
-      const base = move.source === 'scramble' ? 83 : 190;
+      const base = 190;
 
       active = {
         move,
@@ -1166,17 +1338,21 @@ buildContinuousRims();
       updateUI();
     }
 
-    function finishMove() {
-      const { move, moving } = active;
-      const ringSlots = rings[move.ring];
+    function applyRing(ring, dir) {
+      const ringSlots = rings[ring];
+      const moving = ringSlots.map(id => state[id]);
 
       for (let i = 0; i < N; i++) {
-        const destination = (i + move.dir + N) % N;
+        const destination = (i + dir + N) % N;
         const slotId = ringSlots[destination];
-
         state[slotId] = moving[i];
         moving[i].mesh.position.copy(slots[slotId].position);
       }
+    }
+
+    function finishMove() {
+      const { move } = active;
+      applyRing(move.ring, move.dir);
 
       if (move.source === 'undo') {
         history.pop();
@@ -1270,17 +1446,24 @@ buildContinuousRims();
 
     function scramblePuzzle() {
       interrupt();
+      active = null;
+      queue = [];
+      drag = null;
+      canvas.classList.remove('dragging');
 
-      // Alternate ring runs so this is not merely rotating two
-      // independent color sequences.
+      state = beads.slice();
+      history = [];
+      turns = 0;
+
       let ring = Math.random() < 0.5 ? 0 : 1;
 
-      for (let run = 0; run < 14; run++) {
+      for (let run = 0; run < 16; run++) {
         const dir = Math.random() < 0.5 ? 1 : -1;
-        const length = 2 + Math.floor(Math.random() * 3);
+        const length = 2 + Math.floor(Math.random() * 4);
 
         for (let i = 0; i < length; i++) {
-          queue.push({ ring, dir, source: 'scramble' });
+          applyRing(ring, dir);
+          recordMove({ ring, dir });
         }
 
         ring = 1 - ring;
