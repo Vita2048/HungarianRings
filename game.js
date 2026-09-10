@@ -169,10 +169,9 @@ const plasticWell = new THREE.MeshPhysicalMaterial({
   clearcoatRoughness: 0.4,
 });
 
-const grooveHalf = BALL_R * 1.12;
-const innerWallR = PATH_R - grooveHalf;
-const outerWallR = PATH_R + grooveHalf;
-const wallTube = 0.045;
+const innerWallR = PATH_R - BALL_R * 1.08;
+const outerWallR = PATH_R + BALL_R * 1.12;
+const wallTube = 0.042;
 
 const trayW = CENTER_DIST + 2 * outerWallR + 0.55;
 const trayH = 2 * outerWallR + 0.55;
@@ -194,72 +193,62 @@ function addWell(cx) {
 addWell(LEFT_C.x);
 addWell(RIGHT_C.x);
 
-function ringPoint(cx, radius, a) {
-  return new THREE.Vector3(cx + radius * Math.cos(a), 0, radius * Math.sin(a));
+const wallY = TRAY_TOP + 0.07;
+
+function cwDelta(from, to) {
+  let d = to - from;
+  while (d < 0) d += Math.PI * 2;
+  return d;
 }
 
-function appendArc(pts, cx, radius, a0, a1, segs) {
+function sampleCircleArc(cx, radius, a0, sweep, segs) {
+  const pts = [];
   for (let i = 0; i <= segs; i++) {
-    const t = i / segs;
-    pts.push(ringPoint(cx, radius, a0 + (a1 - a0) * t));
+    const a = a0 + (sweep * i) / segs;
+    pts.push(new THREE.Vector3(cx + radius * Math.cos(a), 0, radius * Math.sin(a)));
   }
+  return pts;
 }
 
-function makeTubeFromPts(pts, tube, y, mat) {
-  const curve = new THREE.CatmullRomCurve3(pts, false, "chordal");
-  const mesh = new THREE.Mesh(new THREE.TubeGeometry(curve, 220, tube, 12, false), mat);
-  mesh.position.y = y;
+function addMoldedRail(pts, tube, closed) {
+  const curve = new THREE.CatmullRomCurve3(pts, closed, "catmullrom", 0.08);
+  const mesh = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, Math.max(pts.length * 2, 80), tube, 14, closed),
+    plastic
+  );
+  mesh.position.y = wallY;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   scene.add(mesh);
 }
 
-const wallY = TRAY_TOP + 0.07;
-const LONG = (3 * Math.PI) / 2;
-const JOIN = 0.12;
-
-const pTop = ringPoint(LEFT_C.x, PATH_R, -Math.PI / 4);
-const pBot = ringPoint(LEFT_C.x, PATH_R, Math.PI / 4);
-
-const outerPts = [];
-appendArc(outerPts, LEFT_C.x, outerWallR, Math.PI / 4 + JOIN, Math.PI / 4 + LONG - JOIN, 56);
-const leftTop = outerPts[outerPts.length - 1];
-const rightTop = ringPoint(RIGHT_C.x, outerWallR, (5 * Math.PI) / 4 + JOIN);
-const capTop = pTop.clone();
-capTop.z -= grooveHalf * 0.85;
-outerPts.push(
-  leftTop.clone().lerp(capTop, 0.55),
-  capTop,
-  capTop.clone().lerp(rightTop, 0.45),
-  rightTop
-);
-appendArc(outerPts, RIGHT_C.x, outerWallR, (5 * Math.PI) / 4 + JOIN, (5 * Math.PI) / 4 + LONG - JOIN, 56);
-const rightBot = outerPts[outerPts.length - 1];
-const leftBot = ringPoint(LEFT_C.x, outerWallR, Math.PI / 4 + JOIN);
-const capBot = pBot.clone();
-capBot.z += grooveHalf * 0.85;
-outerPts.push(
-  rightBot.clone().lerp(capBot, 0.55),
-  capBot,
-  capBot.clone().lerp(leftBot, 0.45),
-  leftBot
-);
-makeTubeFromPts(outerPts, wallTube * 1.02, wallY, plastic);
-
-const innerMesh = new THREE.Mesh(
-  new THREE.TorusGeometry(innerWallR, wallTube, 16, 96),
-  plastic
-);
-function addInnerWell(cx) {
-  const m = innerMesh.clone();
-  m.rotation.x = Math.PI / 2;
-  m.position.set(cx, wallY, 0);
-  m.castShadow = true;
-  m.receiveShadow = true;
-  scene.add(m);
+function pairAngles(cx, radius, otherCx) {
+  const mid = (otherCx - cx) / 2;
+  const h = Math.sqrt(Math.max(radius * radius - mid * mid, 0));
+  return { upper: Math.atan2(-h, mid), lower: Math.atan2(h, mid) };
 }
-addInnerWell(LEFT_C.x);
-addInnerWell(RIGHT_C.x);
+
+const lo = pairAngles(LEFT_C.x, outerWallR, RIGHT_C.x);
+const ro = pairAngles(RIGHT_C.x, outerWallR, LEFT_C.x);
+const leftOuter = sampleCircleArc(LEFT_C.x, outerWallR, lo.lower, cwDelta(lo.lower, lo.upper), 80);
+const rightOuter = sampleCircleArc(RIGHT_C.x, outerWallR, ro.upper, cwDelta(ro.upper, ro.lower), 80);
+leftOuter.pop();
+addMoldedRail(leftOuter.concat(rightOuter), wallTube * 1.08, true);
+
+function addWellRim(cx) {
+  const mesh = new THREE.Mesh(new THREE.TorusGeometry(innerWallR, wallTube, 16, 96), plastic);
+  mesh.rotation.x = Math.PI / 2;
+  mesh.position.set(cx, wallY, 0);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+}
+addWellRim(LEFT_C.x);
+addWellRim(RIGHT_C.x);
+
+const hugR = PATH_R * 0.4;
+addMoldedRail(sampleCircleArc(LEFT_C.x, hugR, -0.75, 1.5, 40), wallTube, false);
+addMoldedRail(sampleCircleArc(RIGHT_C.x, hugR, Math.PI - 0.75, 1.5, 40), wallTube, false);
 
 function addTrackBed(cx) {
   const bed = new THREE.Mesh(

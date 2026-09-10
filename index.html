@@ -1,56 +1,1493 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hungarian Rings</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div id="vignette"></div>
-  <canvas id="c"></canvas>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Hungarian Rings — Kinetic Collection</title>
 
-  <header class="ui-panel top-left">
-    <p class="eyebrow">Classic mechanical puzzle</p>
-    <h1>Hungarian Rings</h1>
-    <p class="tagline">Interlock · Rotate · Restore the four colours</p>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+  :root {
+    color-scheme: dark;
+    --bg: #10191c;
+    --panel: #182327;
+    --text: #edf3ef;
+    --muted: #93a5a6;
+    --accent: #bcdfb1;
+    --line: rgba(255,255,255,.09);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "DM Sans", sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(ellipse at 15% 5%, #2b424344, transparent 45%),
+      radial-gradient(ellipse at 95% 70%, #38473322, transparent 45%),
+      var(--bg);
+  }
+
+  button, input { font: inherit; }
+  button { -webkit-tap-highlight-color: transparent; }
+
+  button:focus-visible, input:focus-visible, canvas:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 5px;
+  }
+
+  .shell {
+    width: min(1200px, calc(100% - 64px));
+    margin: 0 auto;
+  }
+
+  header {
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    font-family: "Manrope", sans-serif;
+    font-weight: 800;
+    letter-spacing: -.5px;
+    font-size: 20px;
+  }
+
+  .brand-mark {
+    position: relative;
+    width: 39px;
+    height: 27px;
+  }
+
+  .brand-mark::before, .brand-mark::after {
+    content: "";
+    position: absolute;
+    width: 25px;
+    height: 25px;
+    border: 2px solid var(--accent);
+    border-radius: 50%;
+  }
+
+  .brand-mark::after { left: 13px; opacity: .55; }
+
+  .edition {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+
+  .intro {
+    padding: 43px 0 30px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  .eyebrow {
+    margin-bottom: 12px;
+    color: var(--accent);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    margin: 0;
+    font-family: "Manrope", sans-serif;
+    font-weight: 500;
+    font-size: clamp(34px, 5vw, 52px);
+    letter-spacing: -2.5px;
+    line-height: 1.15;
+  }
+
+  .intro p {
+    color: var(--muted);
+    margin: 13px 0 0;
+    line-height: 1.6;
+    font-size: 14px;
+  }
+
+  .spec {
+    flex-shrink: 0;
+    border: 1px solid var(--line);
+    border-radius: 100px;
+    padding: 10px 16px;
+    color: #c1ceca;
+    font-size: 12px;
+    letter-spacing: .5px;
+  }
+
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 290px;
+    gap: 22px;
+    padding-bottom: 28px;
+  }
+
+  .stage {
+    position: relative;
+    height: 560px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 24px;
+    background: #becacc;
+    box-shadow: 0 24px 70px #0003;
+  }
+
+  .stage::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    box-shadow: inset 0 0 90px #667a7e24;
+  }
+
+  #viewport { width: 100%; height: 100%; }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  canvas.dragging { cursor: grabbing; }
+
+  .stage-top {
+    position: absolute;
+    top: 23px;
+    left: 24px;
+    right: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .object-id {
+    color: #4f6669;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+
+  .status {
+    padding: 8px 11px;
+    border-radius: 30px;
+    background: #f4f8f060;
+    border: 1px solid #ffffff60;
+    color: #40554b;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    backdrop-filter: blur(8px);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #477951;
+  }
+
+  .status.busy .status-dot {
+    background: #aa8532;
+    animation: pulse 1s infinite;
+  }
+
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  .stage-bottom {
+    position: absolute;
+    bottom: 24px;
+    left: 20px;
+    right: 20px;
+    text-align: center;
+    pointer-events: none;
+    color: #4d6466;
+    font-size: 12px;
+    z-index: 1;
+  }
+
+  .drag-icon {
+    display: inline-block;
+    margin-right: 7px;
+    font-size: 16px;
+    vertical-align: -1px;
+  }
+
+  aside {
+    padding: 25px;
+    border: 1px solid var(--line);
+    border-radius: 24px;
+    background: linear-gradient(140deg, #21303588, #172125cc);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+  }
+
+  h2 {
+    font-family: "Manrope", sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .small-label {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 22px;
+    margin-bottom: 23px;
+    gap: 12px;
+  }
+
+  .stat-value {
+    display: block;
+    font-family: "Manrope", sans-serif;
+    font-size: 30px;
+    margin-bottom: 4px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-name { font-size: 11px; color: var(--muted); }
+
+  .btn {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    padding: 13px 16px;
+    background: #ffffff06;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    transition: background .2s, transform .2s, border-color .2s;
+  }
+
+  .btn:hover:not(:disabled) {
+    background: #ffffff0d;
+    border-color: #ffffff30;
+    transform: translateY(-1px);
+  }
+
+  .btn:disabled { opacity: .4; cursor: not-allowed; }
+  .btn + .btn { margin-top: 9px; }
+
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #263722;
+  }
+
+  .btn.primary:hover:not(:disabled) { background: #d1edc8; }
+  .btn.primary.paused { background: #e6c994; border-color: #e6c994; }
+
+  .button-icon { margin-right: 8px; }
+
+  .speed { margin-top: 23px; }
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  input[type="range"] {
+    width: 100%;
+    height: 4px;
+    margin: 17px 0 7px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  .ring-controls {
+    margin-top: 22px;
+    padding-top: 19px;
+    border-top: 1px solid var(--line);
+  }
+
+  .ring-row {
+    display: flex;
+    gap: 7px;
+    align-items: center;
+    margin-top: 10px;
+  }
+
+  .ring-label {
+    background: transparent;
+    color: var(--muted);
+    border: 0;
+    padding: 6px 0;
+    text-align: left;
+    font-size: 12px;
+    cursor: pointer;
+    flex: 1;
+  }
+
+  .ring-label.selected { color: var(--accent); }
+
+  .turn-btn {
+    width: 36px;
+    height: 31px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: #ffffff05;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 19px;
+  }
+
+  .turn-btn:hover { background: #ffffff12; }
+
+  .solver-note {
+    font-size: 10px;
+    line-height: 1.6;
+    color: #849799;
+    margin: auto 0 0;
+    padding-top: 21px;
+  }
+
+  .info-bar {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    padding: 20px 24px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #ffffff02;
+  }
+
+  .swatches { display: flex; gap: 6px; flex-shrink: 0; }
+
+  .swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    box-shadow: inset 0 1px 2px #ffffff35;
+  }
+
+  .info-bar p {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.6;
+    margin: 0;
+  }
+
+  .info-bar strong { color: #dae4df; font-weight: 500; }
+
+  .keys {
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  kbd {
+    display: inline-block;
+    border: 1px solid #ffffff20;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 3px 5px;
+    margin: 0 2px;
+    font-family: inherit;
+    color: #c4d0ce;
+  }
+
+  footer {
+    padding: 2px 0 28px;
+    display: flex;
+    justify-content: space-between;
+    color: #617678;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  #error {
+    display: none;
+    position: absolute;
+    inset: 0;
+    padding: 70px 30px;
+    background: #bcc9ca;
+    color: #243b3d;
+    z-index: 10;
+    line-height: 1.7;
+  }
+
+  @media (max-width: 950px) {
+    .shell { width: calc(100% - 36px); }
+    main { grid-template-columns: minmax(0, 1fr) 260px; gap: 16px; }
+    aside { padding: 21px; }
+    .stage { height: 545px; }
+    .keys { display: none; }
+  }
+
+  @media (max-width: 720px) {
+    header { height: 76px; }
+    .edition { font-size: 9px; letter-spacing: 1px; }
+    .intro { padding: 30px 0 23px; }
+    .spec { display: none; }
+    main { grid-template-columns: 1fr; }
+    .stage { height: clamp(330px, 82vw, 470px); }
+    aside { display: block; }
+    .stats { padding-bottom: 16px; margin-bottom: 17px; }
+    .panel-heading { margin-bottom: 16px; }
+    .ring-controls { margin-top: 17px; }
+    .info-bar { gap: 15px; padding: 17px; }
+    .stage-top { top: 18px; left: 18px; right: 18px; }
+    .stage-bottom { bottom: 18px; font-size: 11px; }
+    footer { font-size: 9px; letter-spacing: .5px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+
+<body>
+<div class="shell">
+  <header>
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      Kinetic
+    </div>
+    <span class="edition">The mechanical puzzle collection</span>
   </header>
 
-  <aside class="ui-panel top-right stats">
-    <div class="stat">
-      <span class="label">Moves</span>
-      <span id="moveCount" class="value">0</span>
+  <section class="intro">
+    <div>
+      <div class="eyebrow">No. 001 / Interlocking classics</div>
+      <h1>Hungarian Rings</h1>
+      <p>Two circles. Four colors. One beautifully tangled problem.</p>
     </div>
-    <div class="stat">
-      <span class="label">Status</span>
-      <span id="status" class="value status-idle">Ready</span>
+    <div class="spec">20 × 2 &nbsp; / &nbsp; 38 marbles</div>
+  </section>
+
+  <main>
+    <section class="stage" aria-label="Interactive Hungarian Rings puzzle">
+      <div class="stage-top">
+        <span class="object-id">HUNGARIAN RINGS / 20×2</span>
+        <span class="status" id="status" role="status">
+          <span class="status-dot"></span>
+          <span id="statusText">Solved</span>
+        </span>
+      </div>
+
+      <div id="viewport"></div>
+      <div id="error"></div>
+
+      <div class="stage-bottom">
+        <span class="drag-icon">↔</span>
+        Drag the marbles around either ring to rotate
+      </div>
+    </section>
+
+    <aside>
+      <div class="panel-heading">
+        <h2>Your playground</h2>
+        <span class="small-label">Live</span>
+      </div>
+
+      <div class="stats">
+        <div>
+          <span class="stat-value" id="moveCount">0</span>
+          <span class="stat-name">Turns made</span>
+        </div>
+        <div>
+          <span class="stat-value" id="matchCount">38<span style="font-size:14px;color:var(--muted)">/38</span></span>
+          <span class="stat-name">Colors in place</span>
+        </div>
+      </div>
+
+      <button class="btn" id="scramble">
+        <span class="button-icon">⤨</span> Scramble puzzle
+      </button>
+      <button class="btn primary" id="solve">
+        <span class="button-icon">▷</span> Auto solve
+      </button>
+      <button class="btn" id="reset">
+        <span class="button-icon">↺</span> Reset to original
+      </button>
+
+      <div class="speed">
+        <div class="row">
+          <label for="speed">Animation speed</label>
+          <span id="speedValue">1.0×</span>
+        </div>
+        <input type="range" id="speed" min="0.5" max="3" step="0.1" value="1" />
+      </div>
+
+      <div class="ring-controls">
+        <div class="small-label">One-step controls</div>
+        <div class="ring-row">
+          <button class="ring-label selected" id="selectLeft">01 &nbsp; Left ring</button>
+          <button class="turn-btn" data-ring="0" data-dir="1" aria-label="Left ring counterclockwise">↶</button>
+          <button class="turn-btn" data-ring="0" data-dir="-1" aria-label="Left ring clockwise">↷</button>
+        </div>
+        <div class="ring-row">
+          <button class="ring-label" id="selectRight">02 &nbsp; Right ring</button>
+          <button class="turn-btn" data-ring="1" data-dir="1" aria-label="Right ring counterclockwise">↶</button>
+          <button class="turn-btn" data-ring="1" data-dir="-1" aria-label="Right ring clockwise">↷</button>
+        </div>
+      </div>
+
+      <p class="solver-note">
+        Replay solver: retraces recorded moves to a solution.
+        Pause anytime, or grab a ring to take over.
+      </p>
+    </aside>
+
+    <div class="info-bar">
+      <div class="swatches" aria-hidden="true">
+        <span class="swatch" style="background:#b63735"></span>
+        <span class="swatch" style="background:#e1bd20"></span>
+        <span class="swatch" style="background:#337439"></span>
+        <span class="swatch" style="background:#315f9b"></span>
+      </div>
+      <p>
+        <strong>Restore the color pattern.</strong>
+        The rings share two marbles — moving one changes the other.
+      </p>
+      <div class="keys">
+        <kbd>1</kbd><kbd>2</kbd> ring
+        &nbsp; <kbd>←</kbd><kbd>→</kbd> turn
+        &nbsp; <kbd>Space</kbd> pause
+      </div>
     </div>
-  </aside>
+  </main>
 
-  <div class="ui-panel bottom-center controls">
-    <button id="newGame" type="button" class="btn gold">
-      <span class="btn-icon">✦</span> New Game
-    </button>
-    <button id="autoSolve" type="button" class="btn outline">
-      <span class="btn-icon">◇</span> <span id="solveLabel">Auto Solve</span>
-    </button>
-  </div>
+  <footer>
+    <span>Less scrolling. More solving.</span>
+    <span>Made to be played</span>
+  </footer>
+</div>
 
-  <p class="hint">Drag a ring to turn the beads · Empty space to look around</p>
+<script type="module">
+(async () => {
+  const error = document.getElementById('error');
 
-  <div id="win" class="win-banner hidden" aria-hidden="true">Solved</div>
+  try {
+    const THREE = await import(
+      'https://cdn.jsdelivr.net/npm/three@0.164.1/build/three.module.js'
+    );
 
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    const $ = id => document.getElementById(id);
+    const container = $('viewport');
+    const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ─────────────────────────────────────────────────────
+    // Scene
+    // ─────────────────────────────────────────────────────
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color('#becacc');
+
+    const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 60);
+    camera.position.set(0, 0, 12);
+    camera.lookAt(0, 0, 0);
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: false,
+      powerPreference: 'high-performance'
+    });
+
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.14;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    const canvas = renderer.domElement;
+    canvas.tabIndex = 0;
+    canvas.setAttribute('aria-label',
+      'Drag either ring to rotate. Use 1 or 2 to select a ring and arrow keys to turn.');
+
+    scene.add(new THREE.HemisphereLight('#ffffff', '#5f7070', 2.1));
+
+    const keyLight = new THREE.DirectionalLight('#fff5e8', 3.0);
+    keyLight.position.set(-3.5, 5, 8);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(2048, 2048);
+    keyLight.shadow.camera.left = -5;
+    keyLight.shadow.camera.right = 5;
+    keyLight.shadow.camera.top = 4;
+    keyLight.shadow.camera.bottom = -4;
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 20;
+    keyLight.shadow.normalBias = 0.025;
+    keyLight.shadow.bias = -0.00015;
+    keyLight.shadow.radius = 4;
+    scene.add(keyLight);
+
+    const fill = new THREE.DirectionalLight('#e1efff', 0.9);
+    fill.position.set(4, 1, 5);
+    scene.add(fill);
+
+    const floor = new THREE.Mesh(
+      new THREE.PlaneGeometry(200, 200),
+      new THREE.MeshStandardMaterial({
+        color: '#becacc',
+        roughness: 1
+      })
+    );
+    floor.position.z = -0.43;
+    floor.receiveShadow = true;
+    scene.add(floor);
+
+    const puzzle = new THREE.Group();
+    scene.add(puzzle);
+
+    function roundedRect(w, h, r) {
+      const s = new THREE.Shape();
+      const x = -w / 2, y = -h / 2;
+
+      s.moveTo(x + r, y);
+      s.lineTo(x + w - r, y);
+      s.quadraticCurveTo(x + w, y, x + w, y + r);
+      s.lineTo(x + w, y + h - r);
+      s.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      s.lineTo(x + r, y + h);
+      s.quadraticCurveTo(x, y + h, x, y + h - r);
+      s.lineTo(x, y + r);
+      s.quadraticCurveTo(x, y, x + r, y);
+      return s;
+    }
+
+    function plate(w, h, radius, depth, bevel, color, z) {
+      const geometry = new THREE.ExtrudeGeometry(
+        roundedRect(w, h, radius),
+        {
+          depth,
+          bevelEnabled: true,
+          bevelSegments: 6,
+          steps: 1,
+          bevelSize: bevel,
+          bevelThickness: bevel,
+          curveSegments: 24
+        }
+      );
+
+      const mesh = new THREE.Mesh(
+        geometry,
+        new THREE.MeshStandardMaterial({
+          color,
+          metalness: 0.06,
+          roughness: 0.38
+        })
+      );
+
+      mesh.position.z = z;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      puzzle.add(mesh);
+      return mesh;
+    }
+
+    // Soft molded, ivory-gray case with an inset face.
+    plate(5.72, 3.65, 0.53, 0.18, 0.12, '#b5b8b5', -0.20);
+    plate(5.54, 3.47, 0.48, 0.06, 0.09, '#e0dfd9', -0.01);
+    plate(5.33, 3.26, 0.42, 0.025, 0.05, '#c5c8c3', 0.065);
+
+    // ─────────────────────────────────────────────────────
+    // Exact topology:
+    // 20 positions per ring; intersection angles ±45°.
+    // A 9° phase offset makes both intersections legal slots.
+    // Left: 2 & 17. Right: 7 & 12. Total = 38 positions.
+    // ─────────────────────────────────────────────────────
+
+    const N = 20;
+    const STEP = Math.PI * 2 / N;
+    const PHASE = Math.PI / 20;
+    const R = 1.46;
+    const C = R / Math.sqrt(2);
+    const centers = [-C, C];
+    const BALL_Z = 0.31;
+
+    const grooveMaterial = new THREE.MeshStandardMaterial({
+      color: '#7f8783',
+      roughness: 0.65,
+      metalness: 0.02
+    });
+
+    const lipMaterial = new THREE.MeshStandardMaterial({
+      color: '#deded8',
+      roughness: 0.38,
+      metalness: 0.04
+    });
+
+// ─────────────────────────────────────────────────────
+// Continuous molded rims.
+// Trace the outline of both channels as one shape,
+// rounding their intersections instead of cutting tubes.
+// ─────────────────────────────────────────────────────
+
+const CHANNEL_HALF_WIDTH = 0.238;
+const LIP_RADIUS = 0.047;
+const JUNCTION_ROUNDING = 0.085;
+
+// Keep the recessed beds underneath the marbles.
+for (let ring = 0; ring < 2; ring++) {
+  const bed = new THREE.Mesh(
+    new THREE.TorusGeometry(R, 0.229, 24, 192),
+    grooveMaterial
+  );
+
+  bed.position.set(centers[ring], 0, 0.137);
+  bed.scale.z = 0.18;
+  bed.receiveShadow = true;
+  puzzle.add(bed);
+}
+
+// Smooth minimum creates gently rounded joins where
+// the two circular channels meet.
+function smoothMinimum(a, b, radius) {
+  const h = Math.max(radius - Math.abs(a - b), 0) / radius;
+  return Math.min(a, b) - h * h * radius * 0.25;
+}
+
+// Negative inside either channel, positive outside.
+// Its zero contour is the continuous rim centerline.
+function channelField(x, y) {
+  const left =
+    Math.abs(Math.hypot(x - centers[0], y) - R) -
+    CHANNEL_HALF_WIDTH;
+
+  const right =
+    Math.abs(Math.hypot(x - centers[1], y) - R) -
+    CHANNEL_HALF_WIDTH;
+
+  return smoothMinimum(left, right, JUNCTION_ROUNDING);
+}
+
+function buildContinuousRims() {
+  // A fine sampling grid is used only once during setup.
+  const columns = 420;
+  const rows = 280;
+
+  const margin = CHANNEL_HALF_WIDTH + LIP_RADIUS + 0.15;
+  const minX = centers[0] - R - margin;
+  const maxX = centers[1] + R + margin;
+  const minY = -R - margin;
+  const maxY = R + margin;
+
+  const dx = (maxX - minX) / columns;
+  const dy = (maxY - minY) / rows;
+  const stride = columns + 1;
+
+  const values = new Float64Array(stride * (rows + 1));
+
+  for (let y = 0; y <= rows; y++) {
+    for (let x = 0; x <= columns; x++) {
+      const value = channelField(
+        minX + x * dx,
+        minY + y * dy
+      );
+
+      // Avoid ambiguous vertices exactly on the contour.
+      values[y * stride + x] =
+        Math.abs(value) < 1e-10 ? 1e-10 : value;
     }
   }
-  </script>
-  <script type="module" src="game.js"></script>
+
+  const nodes = [];
+  const edgeNodes = new Map();
+
+  // Neighboring triangles share the exact same contour
+  // vertex, so there are no cracks or disconnected ends.
+  function crossingNode(a, b) {
+    const key = a < b ? `${a}:${b}` : `${b}:${a}`;
+
+    if (edgeNodes.has(key)) {
+      return edgeNodes.get(key);
+    }
+
+    const t = values[a] / (values[a] - values[b]);
+
+    const ax = a % stride;
+    const ay = Math.floor(a / stride);
+    const bx = b % stride;
+    const by = Math.floor(b / stride);
+
+    const index = nodes.length;
+
+    nodes.push({
+      point: new THREE.Vector3(
+        minX + (ax + (bx - ax) * t) * dx,
+        minY + (ay + (by - ay) * t) * dy,
+        0
+      ),
+      neighbors: []
+    });
+
+    edgeNodes.set(key, index);
+    return index;
+  }
+
+  function processTriangle(a, b, c) {
+    const crossings = [];
+
+    for (const [u, v] of [[a, b], [b, c], [c, a]]) {
+      if ((values[u] < 0) !== (values[v] < 0)) {
+        crossings.push(crossingNode(u, v));
+      }
+    }
+
+    if (crossings.length === 2) {
+      const [u, v] = crossings;
+      nodes[u].neighbors.push(v);
+      nodes[v].neighbors.push(u);
+    }
+  }
+
+  // Extract the combined outline using marching triangles.
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < columns; x++) {
+      const a = y * stride + x;
+      const b = a + 1;
+      const d = a + stride;
+      const c = d + 1;
+
+      processTriangle(a, b, c);
+      processTriangle(a, c, d);
+    }
+  }
+
+  const visited = new Set();
+
+  for (let start = 0; start < nodes.length; start++) {
+    if (visited.has(start)) continue;
+
+    const points = [];
+    let previous = -1;
+    let current = start;
+    let closed = false;
+
+    // Join contour segments into complete closed loops.
+    for (let guard = 0; guard <= nodes.length; guard++) {
+      if (visited.has(current)) {
+        closed = current === start;
+        break;
+      }
+
+      visited.add(current);
+      points.push(nodes[current].point);
+
+      const next = nodes[current].neighbors.find(
+        index => index !== previous
+      );
+
+      if (next === undefined) break;
+
+      previous = current;
+      current = next;
+    }
+
+    if (!closed || points.length < 8) continue;
+
+    // Remove near-duplicate samples for a stable spline.
+    const cleanPoints = [];
+
+    for (const point of points) {
+      const last = cleanPoints[cleanPoints.length - 1];
+
+      if (!last || last.distanceToSquared(point) > 0.000025) {
+        cleanPoints.push(point);
+      }
+    }
+
+    if (
+      cleanPoints.length > 3 &&
+      cleanPoints[0].distanceToSquared(
+        cleanPoints[cleanPoints.length - 1]
+      ) < 0.000025
+    ) {
+      cleanPoints.pop();
+    }
+
+    if (cleanPoints.length < 4) continue;
+
+    const outline = new THREE.CatmullRomCurve3(
+      cleanPoints,
+      true,
+      'centripetal'
+    );
+
+    outline.arcLengthDivisions = Math.max(
+      1000,
+      cleanPoints.length * 2
+    );
+
+    const segments = Math.max(
+      160,
+      Math.ceil(outline.getLength() * 100)
+    );
+
+    // A closed tube has no exposed cut faces.
+    const geometry = new THREE.TubeGeometry(
+      outline,
+      segments,
+      LIP_RADIUS,
+      16,
+      true
+    );
+
+    const rim = new THREE.Mesh(geometry, lipMaterial);
+
+    rim.position.z = 0.155;
+    rim.scale.z = 0.8;
+    rim.castShadow = true;
+    rim.receiveShadow = true;
+
+    puzzle.add(rim);
+  }
+}
+
+buildContinuousRims();
+    const slots = [];
+    const rings = [[], []];
+
+    function positionAt(ring, angle) {
+      return new THREE.Vector3(
+        centers[ring] + R * Math.cos(angle),
+        R * Math.sin(angle),
+        BALL_Z
+      );
+    }
+
+    for (let ring = 0; ring < 2; ring++) {
+      for (let i = 0; i < N; i++) {
+        const position = positionAt(ring, PHASE + i * STEP);
+
+        let id = slots.findIndex(s =>
+          s.position.distanceToSquared(position) < 0.000001
+        );
+
+        if (id === -1) {
+          id = slots.length;
+          slots.push({ position, target: null });
+        }
+
+        rings[ring].push(id);
+      }
+    }
+
+    // Target follows the reference image:
+    // red upper/outer left; green lower/inner left;
+    // yellow upper/inner right; blue lower/outer right.
+    for (let i = 0; i < N; i++) {
+      slots[rings[0][i]].target =
+        i === 2 ? 'yellow' :
+        i >= 3 && i <= 12 ? 'red' : 'green';
+    }
+
+    for (let i = 0; i < N; i++) {
+      const id = rings[1][i];
+      if (slots[id].target === null) {
+        slots[id].target = i >= 3 && i <= 11 ? 'yellow' : 'blue';
+      }
+    }
+
+    const palette = {
+      red: '#a92325',
+      yellow: '#d9b500',
+      green: '#20742a',
+      blue: '#214f91'
+    };
+
+    const materials = {};
+    for (const [name, color] of Object.entries(palette)) {
+      materials[name] = new THREE.MeshPhysicalMaterial({
+        color,
+        roughness: 0.32,
+        metalness: 0.035,
+        clearcoat: 0.3,
+        clearcoatRoughness: 0.3
+      });
+    }
+
+    const ballGeometry = new THREE.SphereGeometry(0.207, 36, 24);
+    const beads = slots.map((slot, id) => {
+      const mesh = new THREE.Mesh(ballGeometry, materials[slot.target]);
+      mesh.position.copy(slot.position);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      puzzle.add(mesh);
+      return { id, color: slot.target, mesh };
+    });
+
+    // state[slot ID] is the bead occupying that physical position.
+    let state = beads.slice();
+
+    // ─────────────────────────────────────────────────────
+    // Move engine and interruptible inverse-history solver
+    // ─────────────────────────────────────────────────────
+
+    let history = [];
+    let queue = [];
+    let active = null;
+    let solving = false;
+    let turns = 0;
+    let selectedRing = 0;
+    let drag = null;
+
+    function matchingCount() {
+      return state.reduce(
+        (sum, bead, i) => sum + Number(bead.color === slots[i].target), 0
+      );
+    }
+
+    function solved() {
+      return matchingCount() === slots.length;
+    }
+
+    function updateUI() {
+      $('moveCount').textContent = turns;
+      $('matchCount').innerHTML =
+        `${matchingCount()}<span style="font-size:14px;color:var(--muted)">/38</span>`;
+
+      const mixing =
+        active?.move.source === 'scramble' ||
+        queue.some(m => m.source === 'scramble');
+
+      let text;
+      if (solving) text = `Solving · ${history.length} left`;
+      else if (mixing) text = 'Scrambling';
+      else if (active || queue.length) text = 'Turning';
+      else text = solved() ? 'Solved' : 'Your move';
+
+      $('statusText').textContent = text;
+      $('status').classList.toggle('busy', solving || mixing);
+
+      $('solve').innerHTML = solving
+        ? '<span class="button-icon">Ⅱ</span> Pause solver'
+        : '<span class="button-icon">▷</span> Auto solve';
+
+      $('solve').classList.toggle('paused', solving);
+      $('solve').disabled = !solving && solved() && !active && !queue.length;
+      $('scramble').disabled = mixing;
+
+      $('selectLeft').classList.toggle('selected', selectedRing === 0);
+      $('selectRight').classList.toggle('selected', selectedRing === 1);
+    }
+
+    function selectRing(ring) {
+      selectedRing = ring;
+      updateUI();
+    }
+
+    function interrupt() {
+      solving = false;
+      queue = [];
+      // A move already in flight finishes atomically.
+      // Therefore both the state and undo history remain valid.
+      updateUI();
+    }
+
+    function manualMove(ring, dir) {
+      solving = false;
+      queue = queue.filter(m => m.source === 'manual');
+      selectedRing = ring;
+      if (queue.length < 60) {
+        queue.push({ ring, dir, source: 'manual' });
+      }
+      updateUI();
+    }
+
+    function recordMove(move) {
+      const last = history[history.length - 1];
+
+      // Cancel adjacent inverse turns.
+      if (last && last.ring === move.ring && last.dir === -move.dir) {
+        history.pop();
+      } else {
+        history.push({ ring: move.ring, dir: move.dir });
+      }
+
+      // Twenty identical turns are a full revolution.
+      if (history.length >= N) {
+        const tail = history.slice(-N);
+        if (tail.every(m => m.ring === move.ring && m.dir === move.dir)) {
+          history.splice(-N);
+        }
+      }
+    }
+
+    function startMove(move, now) {
+      const ringSlots = rings[move.ring];
+      const moving = ringSlots.map(id => state[id]);
+      const speed = Number($('speed').value);
+      const base = move.source === 'scramble' ? 83 : 190;
+
+      active = {
+        move,
+        moving,
+        start: now,
+        duration: reducedMotion ? 32 : base / speed
+      };
+
+      updateUI();
+    }
+
+    function finishMove() {
+      const { move, moving } = active;
+      const ringSlots = rings[move.ring];
+
+      for (let i = 0; i < N; i++) {
+        const destination = (i + move.dir + N) % N;
+        const slotId = ringSlots[destination];
+
+        state[slotId] = moving[i];
+        moving[i].mesh.position.copy(slots[slotId].position);
+      }
+
+      if (move.source === 'undo') {
+        history.pop();
+      } else {
+        recordMove(move);
+        turns++;
+      }
+
+      active = null;
+
+      // Equal-colored beads are interchangeable.
+      // Reaching the target colors establishes a new solved origin.
+      if (solved()) {
+        history = [];
+        solving = false;
+      }
+
+      updateUI();
+    }
+
+    function tickMoves(now) {
+      if (!active) {
+        if (queue.length) {
+          startMove(queue.shift(), now);
+        } else if (solving) {
+          if (!history.length || solved()) {
+            solving = false;
+            updateUI();
+          } else {
+            const last = history[history.length - 1];
+            startMove({
+              ring: last.ring,
+              dir: -last.dir,
+              source: 'undo'
+            }, now);
+          }
+        }
+      }
+
+      if (!active) return;
+
+      const t = Math.min((now - active.start) / active.duration, 1);
+      const ease = t * t * (3 - 2 * t);
+      const { move, moving } = active;
+
+      for (let i = 0; i < N; i++) {
+        const angle = PHASE + (i + move.dir * ease) * STEP;
+        moving[i].mesh.position.set(
+          centers[move.ring] + R * Math.cos(angle),
+          R * Math.sin(angle),
+          BALL_Z
+        );
+      }
+
+      if (t >= 1) finishMove();
+    }
+
+    function toggleSolver() {
+      if (solving) {
+        interrupt();
+        return;
+      }
+
+      queue = [];
+
+      if (!active && solved()) {
+        updateUI();
+        return;
+      }
+
+      solving = true;
+      updateUI();
+    }
+
+    function resetPuzzle() {
+      solving = false;
+      active = null;
+      queue = [];
+      history = [];
+      turns = 0;
+      drag = null;
+      canvas.classList.remove('dragging');
+
+      state = beads.slice();
+      state.forEach((bead, i) =>
+        bead.mesh.position.copy(slots[i].position)
+      );
+
+      updateUI();
+    }
+
+    function scramblePuzzle() {
+      interrupt();
+
+      // Alternate ring runs so this is not merely rotating two
+      // independent color sequences.
+      let ring = Math.random() < 0.5 ? 0 : 1;
+
+      for (let run = 0; run < 14; run++) {
+        const dir = Math.random() < 0.5 ? 1 : -1;
+        const length = 2 + Math.floor(Math.random() * 3);
+
+        for (let i = 0; i < length; i++) {
+          queue.push({ ring, dir, source: 'scramble' });
+        }
+
+        ring = 1 - ring;
+      }
+
+      updateUI();
+    }
+
+    $('scramble').addEventListener('click', scramblePuzzle);
+    $('solve').addEventListener('click', toggleSolver);
+    $('reset').addEventListener('click', resetPuzzle);
+
+    $('speed').addEventListener('input', () => {
+      $('speedValue').textContent = Number($('speed').value).toFixed(1) + '×';
+    });
+
+    $('selectLeft').addEventListener('click', () => selectRing(0));
+    $('selectRight').addEventListener('click', () => selectRing(1));
+
+    document.querySelectorAll('.turn-btn').forEach(button => {
+      button.addEventListener('click', () => {
+        manualMove(Number(button.dataset.ring), Number(button.dataset.dir));
+      });
+    });
+
+    // ─────────────────────────────────────────────────────
+    // Mouse / touch rotation
+    // ─────────────────────────────────────────────────────
+
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const touchPlane = new THREE.Plane(
+      new THREE.Vector3(0, 0, 1), -BALL_Z
+    );
+    const hit = new THREE.Vector3();
+
+    function pointerOnPuzzle(event) {
+      const rect = canvas.getBoundingClientRect();
+
+      pointer.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+      );
+
+      raycaster.setFromCamera(pointer, camera);
+      return raycaster.ray.intersectPlane(touchPlane, hit);
+    }
+
+    function ringDistance(point, ring) {
+      return Math.abs(
+        Math.hypot(point.x - centers[ring], point.y) - R
+      );
+    }
+
+    function pickRing(point) {
+      const a = ringDistance(point, 0);
+      const b = ringDistance(point, 1);
+
+      if (Math.min(a, b) > 0.36) return -1;
+
+      // At a shared position, respect the explicitly selected ring.
+      if (Math.abs(a - b) < 0.055) return selectedRing;
+      return a < b ? 0 : 1;
+    }
+
+    canvas.addEventListener('pointerdown', event => {
+      if (!event.isPrimary || event.button !== 0) return;
+
+      const point = pointerOnPuzzle(event);
+      if (!point) return;
+
+      const ring = pickRing(point);
+      if (ring === -1) return;
+
+      event.preventDefault();
+      canvas.focus({ preventScroll: true });
+
+      interrupt();
+      selectRing(ring);
+
+      drag = {
+        pointerId: event.pointerId,
+        ring,
+        angle: Math.atan2(point.y, point.x - centers[ring]),
+        accumulated: 0
+      };
+
+      canvas.setPointerCapture(event.pointerId);
+      canvas.classList.add('dragging');
+    });
+
+    canvas.addEventListener('pointermove', event => {
+      const point = pointerOnPuzzle(event);
+      if (!point) return;
+
+      if (!drag) {
+        canvas.style.cursor = pickRing(point) === -1 ? 'default' : 'grab';
+        return;
+      }
+
+      if (event.pointerId !== drag.pointerId) return;
+
+      canvas.style.cursor = 'grabbing';
+
+      const radius = Math.hypot(
+        point.x - centers[drag.ring], point.y
+      );
+
+      // Avoid unstable angles if the pointer passes through a center.
+      if (radius < 0.35) return;
+
+      const angle = Math.atan2(
+        point.y, point.x - centers[drag.ring]
+      );
+
+      let delta = angle - drag.angle;
+      if (delta > Math.PI) delta -= Math.PI * 2;
+      if (delta < -Math.PI) delta += Math.PI * 2;
+
+      drag.angle = angle;
+      drag.accumulated += delta;
+
+      // Each 18° of tangential dragging is one legal turn.
+      while (Math.abs(drag.accumulated) >= STEP) {
+        const dir = Math.sign(drag.accumulated);
+        manualMove(drag.ring, dir);
+        drag.accumulated -= dir * STEP;
+      }
+    });
+
+    function releasePointer(event) {
+      if (!drag || drag.pointerId !== event.pointerId) return;
+
+      const id = drag.pointerId;
+      drag = null;
+
+      if (canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
+      canvas.classList.remove('dragging');
+      canvas.style.cursor = 'grab';
+    }
+
+    canvas.addEventListener('pointerup', releasePointer);
+    canvas.addEventListener('pointercancel', releasePointer);
+    canvas.addEventListener('lostpointercapture', releasePointer);
+
+    window.addEventListener('keydown', event => {
+      const tag = document.activeElement?.tagName;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag)) return;
+
+      if (event.key === '1') selectRing(0);
+      if (event.key === '2') selectRing(1);
+
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        manualMove(selectedRing, event.key === 'ArrowLeft' ? 1 : -1);
+      }
+
+      if (event.code === 'Space' && tag !== 'BUTTON') {
+        event.preventDefault();
+        toggleSolver();
+      }
+
+      if (event.key === 'Escape') {
+        interrupt();
+        drag = null;
+        canvas.classList.remove('dragging');
+      }
+    });
+
+    // ─────────────────────────────────────────────────────
+    // Responsive camera and render loop
+    // ─────────────────────────────────────────────────────
+
+    function resize() {
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+
+      const verticalFov = THREE.MathUtils.degToRad(camera.fov);
+      const visibleHeight = Math.max(5.45, 6.7 / camera.aspect);
+
+      camera.position.z =
+        visibleHeight / (2 * Math.tan(verticalFov / 2)) + 0.22;
+
+      camera.updateProjectionMatrix();
+    }
+
+    new ResizeObserver(resize).observe(container);
+    resize();
+    updateUI();
+
+    renderer.setAnimationLoop(now => {
+      tickMoves(now);
+      renderer.render(scene, camera);
+    });
+
+  } catch (err) {
+    console.error(err);
+    error.style.display = 'block';
+    error.textContent =
+      'The 3D puzzle could not start. Please use a browser with WebGL enabled ' +
+      'and check your internet connection so Three.js can load. ' +
+      'Details: ' + err.message;
+  }
+})();
+</script>
 </body>
 </html>
